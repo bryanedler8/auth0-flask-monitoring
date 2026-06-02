@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Profile</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Your Profile</h1>
+        <pre>{{ user | tojson(indent=2) }}</pre>
+        <a href="/">Home</a>
+        <a href="/logout">Logout</a>
+    </div>
+</body>
+</html>
