@@ -1,3 +1,4 @@
-auth0-server-python
-flask[async]
+flask
 python-dotenv
+authlib
+requests

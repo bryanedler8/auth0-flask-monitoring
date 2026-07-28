@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Protected Route</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .alert { background: #d4edda; padding: 20px; border-radius: 5px; }
+        .nav { margin: 20px 0; }
+        .nav a { margin-right: 15px; }
+        .btn { display: inline-block; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔒 Protected Route</h1>
+        <div class="alert">
+            <p><strong>You've accessed a protected route!</strong></p>
+            <p>User: {{ user.email }}</p>
+            <p>This access has been logged for security monitoring.</p>
+        </div>
+        <div class="nav">
+            <a href="/">Home</a>
+            <a href="/profile">Profile</a>
+            <a href="/logout">Logout</a>
+        </div>
+        <p><a href="/protected" class="btn">Access Protected Again</a></p>
+    </div>
+</body>
+</html>
