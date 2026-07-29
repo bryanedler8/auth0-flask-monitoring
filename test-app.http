@@ -1,0 +1,125 @@
+### ============================================
+### Auth0 Flask App - Test Suite
+### For Lab: Securing and Monitoring Flask App
+### ============================================
+
+### 1. TEST PUBLIC ACCESS (Should work without login)
+### ============================================
+
+# Test Home Page (Public)
+GET http://localhost:5000/
+Accept: text/html
+
+# Test Health Endpoint
+GET http://localhost:5000/health
+Accept: application/json
+
+### 2. TEST UNAUTHORIZED ACCESS (Should redirect to login)
+### ============================================
+
+# Test Protected Route Without Login - Should redirect to /login
+GET http://localhost:5000/protected
+Accept: text/html
+
+# Test Profile Without Login - Should redirect to /login
+GET http://localhost:5000/profile
+Accept: text/html
+
+### 3. TEST AUTH0 LOGIN FLOW (Valid Authentication)
+### ============================================
+
+# Step 1: Initiate Login - Redirects to Auth0
+GET http://localhost:5000/login
+Accept: text/html
+
+# Step 2: Auth0 Callback (After successful login)
+# Note: This will be handled automatically by Auth0 redirect
+# After login, you'll be redirected back to: http://localhost:5000/callback?code=xxx&state=yyy
+GET http://localhost:5000/callback?code=test_code&state=test_state
+Accept: text/html
+
+### 4. TEST PROTECTED ACCESS (Valid - After Login)
+### ============================================
+
+# Test Protected Route with Authentication
+# You need to be logged in first (get session cookie)
+# The session cookie is automatically handled by your browser
+GET http://localhost:5000/protected
+Accept: text/html
+# Expected: 200 OK - Access granted
+
+# Test Profile with Authentication
+GET http://localhost:5000/profile
+Accept: text/html
+# Expected: 200 OK - Access granted
+
+### 5. TEST EXCESSIVE ACCESS (Simulate Traffic)
+### ============================================
+
+# Access Protected Route 15+ times to trigger alert
+# Run this 15+ times in a row with valid authentication
+# Each should return 200 OK
+GET http://localhost:5000/protected
+Accept: text/html
+# Expected: 200 OK for each request
+
+# Alternative: Access Protected Route with delay (simulates real user)
+# Wait 1-2 seconds between requests to simulate human behavior
+# After 10+ accesses in 15 minutes, KQL query should detect it
+
+### 6. TEST LOGOUT
+### ============================================
+
+# Logout - Clear session and redirect to Auth0 logout
+GET http://localhost:5000/logout
+Accept: text/html
+# Expected: 302 Redirect to Auth0 logout page
+
+### 7. SIMULATE BRUTE FORCE / SUSPICIOUS ACTIVITY
+### ============================================
+
+# Rapid successive accesses (simulates automated attack)
+# Uncomment and run these in quick succession
+# GET http://localhost:5000/protected
+# GET http://localhost:5000/protected
+# GET http://localhost:5000/protected
+# GET http://localhost:5000/protected
+# GET http://localhost:5000/protected
+# GET http://localhost:5000/protected
+# GET http://localhost:5000/protected
+# GET http://localhost:5000/protected
+# GET http://localhost:5000/protected
+# GET http://localhost:5000/protected
+# GET http://localhost:5000/protected
+# GET http://localhost:5000/protected
+# GET http://localhost:5000/protected
+# GET http://localhost:5000/protected
+# GET http://localhost:5000/protected
+
+### 8. TEST AZURE DEPLOYMENT (After Deployment)
+### ============================================
+
+# For testing on Azure, replace localhost with your Azure URL:
+# GET https://auth0-flask-monitor.azurewebsites.net/
+# GET https://auth0-flask-monitor.azurewebsites.net/health
+# GET https://auth0-flask-monitor.azurewebsites.net/protected
+
+### 9. TEST API ENDPOINTS
+### ============================================
+
+# Check if the app is healthy
+GET http://localhost:5000/health
+Accept: application/json
+# Expected: {"status":"healthy"}
+
+### 10. VERIFY LOGGING
+### ============================================
+
+# After running these tests, check your terminal for log entries like:
+# SECURITY_EVENT: {"event_type": "login_success", ...}
+# SECURITY_EVENT: {"event_type": "protected_access", ...}
+# SECURITY_EVENT: {"event_type": "unauthorized_access", ...}
+
+### ============================================
+### End of Test Suite
+### ============================================
