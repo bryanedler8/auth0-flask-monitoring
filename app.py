@@ -1,47 +1,44 @@
-from flask import Flask, render_template, redirect, url_for, session, request
-from auth import auth0, init_auth
 import os
+import sys
 import logging
-from datetime import datetime
+from flask import Flask, render_template, redirect, url_for, session, request
 from functools import wraps
 from urllib.parse import quote_plus, urlencode
+from auth import auth0, init_auth
+
+# Configure logging to output to console
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.secret_key = os.getenv('AUTH0_SECRET')
+app.secret_key = os.getenv('AUTH0_SECRET', 'default-secret-key')
+
+# Force HTTPS in production
+if os.getenv('WEBSITE_HOSTNAME'):
+    class ReverseProxied(object):
+        def __init__(self, app):
+            self.app = app
+
+        def __call__(self, environ, start_response):
+            scheme = environ.get('HTTP_X_FORWARDED_PROTO')
+            if scheme:
+                environ['wsgi.url_scheme'] = scheme
+            return self.app(environ, start_response)
+
+    app.wsgi_app = ReverseProxied(app.wsgi_app)
 
 # Initialize Auth0
 init_auth(app)
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Add structured logging
-class StructuredLogger:
-    @staticmethod
-    def log_event(event_type, user_id=None, email=None, route=None, status=None, extra=None):
-        log_entry = {
-            "timestamp": datetime.utcnow().isoformat(),
-            "event_type": event_type,
-            "user_id": user_id,
-            "email": email,
-            "route": route,
-            "status": status,
-            "extra": extra or {}
-        }
-        logger.info(f"SECURITY_EVENT: {log_entry}")
-        return log_entry
-
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        user = session.get('user')
-        if not user:
-            StructuredLogger.log_event(
-                "unauthorized_access",
-                route=request.path,
-                status="denied"
-            )
+        if 'user' not in session:
+            logger.warning("SECURITY_EVENT: Unauthorized access attempt to protected route")
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated_function
@@ -50,17 +47,14 @@ def login_required(f):
 def index():
     user = session.get('user')
     if user:
-        StructuredLogger.log_event(
-            "page_view",
-            user_id=user.get('sub'),
-            email=user.get('email'),
-            route='/'
-        )
+        logger.info(f"SECURITY_EVENT: Page view - user: {user.get('email')}, route: /")
+    else:
+        logger.info("SECURITY_EVENT: Page view - anonymous user, route: /")
     return render_template('index.html', user=user)
 
 @app.route('/login')
 def login():
-    StructuredLogger.log_event("login_attempt", route='/login')
+    logger.info("SECURITY_EVENT: Login attempt")
     return auth0.authorize_redirect(
         redirect_uri=url_for('callback', _external=True)
     )
@@ -68,72 +62,37 @@ def login():
 @app.route('/callback')
 def callback():
     try:
-        # Get the token
         token = auth0.authorize_access_token()
-        
-        # Get user info
         resp = auth0.get('userinfo', token=token)
-        userinfo = resp.json()
+        user = resp.json()
+        session['user'] = user
         
-        # Store user in session
-        session['user'] = userinfo
-        
-        StructuredLogger.log_event(
-            "login_success",
-            user_id=userinfo.get('sub'),
-            email=userinfo.get('email'),
-            status="success"
-        )
+        logger.info(f"SECURITY_EVENT: Login success - user_id: {user.get('sub')}, email: {user.get('email')}")
         return redirect(url_for('index'))
     except Exception as e:
-        StructuredLogger.log_event(
-            "login_failure",
-            route='/callback',
-            status="failed",
-            extra={"error": str(e)}
-        )
+        logger.error(f"SECURITY_EVENT: Login failure - {str(e)}")
         return redirect(url_for('login'))
 
 @app.route('/profile')
 @login_required
 def profile():
     user = session.get('user')
-    StructuredLogger.log_event(
-        "protected_access",
-        user_id=user.get('sub'),
-        email=user.get('email'),
-        route='/profile',
-        status="accessed"
-    )
+    logger.info(f"SECURITY_EVENT: Protected access - user: {user.get('email')}, route: /profile")
     return render_template('profile.html', user=user)
 
 @app.route('/protected')
 @login_required
 def protected():
     user = session.get('user')
-    StructuredLogger.log_event(
-        "protected_access",
-        user_id=user.get('sub'),
-        email=user.get('email'),
-        route='/protected',
-        status="accessed"
-    )
+    logger.info(f"SECURITY_EVENT: Protected access - user: {user.get('email')}, route: /protected")
     return render_template('protected.html', user=user)
 
 @app.route('/logout')
 def logout():
     user = session.get('user')
     if user:
-        StructuredLogger.log_event(
-            "logout",
-            user_id=user.get('sub'),
-            email=user.get('email')
-        )
-    
-    # Clear session
+        logger.info(f"SECURITY_EVENT: Logout - user: {user.get('email')}")
     session.clear()
-    
-    # Redirect to Auth0 logout
     return redirect(
         f"https://{os.getenv('AUTH0_DOMAIN')}/v2/logout?"
         + urlencode({
@@ -142,5 +101,9 @@ def logout():
         }, quote_via=quote_plus)
     )
 
+@app.route('/health')
+def health():
+    return {"status": "healthy"}, 200
+
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=8000)
