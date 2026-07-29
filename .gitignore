@@ -3,3 +3,7 @@
 *.env
 __pycache__/
 templates/.gitignore
+venv/
+__pycache__/
+*.pyc
+.env
